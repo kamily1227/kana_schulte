@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kana Schulte Grid + Vocabulary Trainer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --accent: #22c55e;
+    --accent-2: #3b82f6;
+    --danger: #ef4444;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --cell: #1f2937;
+    --cell-hover: #374151;
+    --cell-correct: #16a34a;
+    --cell-wrong: #dc2626;
+    --cell-next: #f59e0b;
+  }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+  }
+  .wrap {
+    max-width: 1100px; margin: 0 auto; padding: 16px;
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; font-weight: 700; color: #fff; }
+  .controls {
+    background: var(--panel); border-radius: 12px; padding: 12px; display: grid; gap: 12px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .group { display: grid; gap: 6px; }
+  label { color: var(--muted); font-size: 12px; }
+  select, input[type="number"], input[type="text"] {
+    background: #0b1220; color: var(--text); border: 1px solid #26324a; border-radius: 8px; padding: 8px 10px; font-size: 14px;
+  }
+  .radio-group { display: flex; gap: 8px; }
+  .radio-group label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+  button {
+    background: var(--accent-2); color: white; border: none; border-radius: 10px; padding: 10px 14px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  button.secondary { background: #334155; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .status {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+    background: var(--panel); border-radius: 12px; padding: 10px 12px;
+  }
+  .badges { display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    font-size: 12px; background: #0b1220; border: 1px solid #26324a; border-radius: 999px; padding: 6px 10px; color: var(--text);
+  }
+  .next-indicator { font-size: 16px; }
+  .grid-outer {
+    background: var(--panel); border-radius: 12px; padding: 10px;
+  }
+  .grid {
+    display: grid; gap: 8px; width: 100%; max-width: 800px; margin: 0 auto;
+    touch-action: none;
+  }
+  .cell {
+    background: var(--cell); border: 1px solid #26324a; color: #fff; border-radius: 10px;
+    display: grid; place-items: center; font-size: clamp(20px, 6.5vmin, 42px); aspect-ratio: 1;
+    user-select: none; transition: transform 0.08s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  .cell.active { background: var(--cell-hover); }
+  .cell.correct { background: var(--cell-correct); border-color: #0b6b2e; }
+  .cell.wrong { background: var(--cell-wrong); border-color: #7f1d1d; transform: scale(0.97); }
+  .cell.next { outline: 2px solid var(--cell-next); box-shadow: 0 0 0 2px var(--cell-next) inset; }
+  .cell.disabled { opacity: 0.65; pointer-events: none; }
+  .footer {
+    color: var(--muted); font-size: 12px; text-align: center; padding-bottom: 24px;
+  }
+  .hint { color: var(--muted); font-size: 13px; }
+  .flex-grow { flex: 1; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Kana Schulte Grid + Vocabulary Trainer</h1>
+      <div class="row">
+        <button id="btnStart">Start</button>
+        <button id="btnReset" class="secondary">Reset</button>
+      </div>
+    </header>
+
+    <section class="controls">
+      <div class="row">
+        <div class="group">
+          <label>Mode</label>
+          <div class="radio-group" id="modeGroup">
+            <label><input type="radio" name="mode" value="sequence" checked> Sequence (Schulte)</label>
+            <label><input type="radio" name="mode" value="vocab"> Vocabulary</label>
+          </div>
+        </div>
+
+        <div class="group" id="scriptGroup">
+          <label>Script</label>
+          <div class="radio-group">
+            <label><input type="radio" name="script" value="hiragana" checked> Hiragana</label>
+            <label><input type="radio" name="script" value="katakana"> Katakana</label>
+          </div>
+        </div>
+
+        <div class="group">
+          <label>Grid size</label>
+          <select id="gridSize">
+            <option value="3">3 x 3</option>
+            <option value="4">4 x 4</option>
+            <option value="5" selected>5 x 5</option>
+            <option value="6">6 x 6</option>
+          </select>
+        </div>
+
+        <div class="group" id="hintGroup">
+          <label>Hints</label>
+          <div class="radio-group">
+            <label><input type="checkbox" id="toggleHint" checked> Highlight next</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="row" id="vocabOptions" style="display:none">
+        <div class="group" style="min-width: 220px">
+          <label>Sample words (Hiragana)</label>
+          <select id="sampleWord">
+            <option value="">— Choose a sample —</option>
+          </select>
+          <div class="hint">Samples avoid dakuten/long vowels/small kana for simplicity.</div>
+        </div>
+        <div class="group flex-grow">
+          <label>Or enter your own word (kana)</label>
+          <input type="text" id="customWord" placeholder="Type kana (e.g., ねこ or カメラ)" inputmode="text">
+        </div>
+        <div class="group">
+          <label>Use Katakana</label>
+          <div class="radio-group">
+            <label><input type="checkbox" id="vocabKatakana"> Convert target to Katakana</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="status">
+      <div class="badges">
+        <div class="badge" id="statusMode">Mode: Sequence</div>
+        <div class="badge" id="statusScript">Script: Hiragana</div>
+        <div class="badge" id="statusGrid">Grid: 5×5</div>
+        <div class="badge" id="statusTime">Time: 0.00s</div>
+        <div class="badge" id="statusErrors">Errors: 0</div>
+      </div>
+      <div class="next-indicator" id="nextIndicator">Next: —</div>
+    </section>
+
+    <section class="grid-outer">
+      <div id="grid" class="grid"></div>
+    </section>
+
+    <div class="footer">
+      Tip: In Sequence mode, you must tap kana in gojūon order. In Vocabulary mode, tap the kana in order to form the target word.
+    </div>
+  </div>
+
+<script>
+  // Kana data: gojūon order (basic set)
+  const HIRAGANA = [
+    "あ","い","う","え","お",
+    "か","き","く","け","こ",
+    "さ","し","す","せ","そ",
+    "た","ち","つ","て","と",
+    "な","に","ぬ","ね","の",
+    "は","ひ","ふ","へ","ほ",
+    "ま","み","む","め","も",
+    "や","ゆ","よ",
+    "ら","り","る","れ","ろ",
+    "わ","を","ん"
+  ];
+  const KATAKANA = [
+    "ア","イ","ウ","エ","オ",
+    "カ","キ","ク","ケ","コ",
+    "サ","シ","ス","セ","ソ",
+    "タ","チ","ツ","テ","ト",
+    "ナ","ニ","ヌ","ネ","ノ",
+    "ハ","ヒ","フ","ヘ","ホ",
+    "マ","ミ","ム","メ","モ",
+    "ヤ","ユ","ヨ",
+    "ラ","リ","ル","レ","ロ",
+    "ワ","ヲ","ン"
+  ];
+
+  // Sample words (simple, no dakuten/long vowel/small kana)
+  // You can add more here.
+  const SAMPLE_WORDS = [
+    "ねこ","いぬ","さくら","すいか","くるま","たまご","はな","やま","かわ","みず",
+    "とり","かさ","つき","ひと","いえ","せかい","おかね","えき","うみ","もり"
+  ];
+
+  // Utility: shuffle array in place
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // Kana conversions (Hiragana <-> Katakana basic range)
+  function hiraToKata(str) {
+    return str.replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+  }
+  function kataToHira(str) {
+    return str.replace(/[\u30A1-\u30F6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+  }
+
+  // State
+  const el = {
+    grid: document.getElementById('grid'),
+    btnStart: document.getElementById('btnStart'),
+    btnReset: document.getElementById('btnReset'),
+    modeGroup: document.getElementById('modeGroup'),
+    scriptGroup: document.getElementById('scriptGroup'),
+    gridSize: document.getElementById('gridSize'),
+    toggleHint: document.getElementById('toggleHint'),
+    vocabOptions: document.getElementById('vocabOptions'),
+    sampleWord: document.getElementById('sampleWord'),
+    customWord: document.getElementById('customWord'),
+    vocabKatakana: document.getElementById('vocabKatakana'),
+    statusMode: document.getElementById('statusMode'),
+    statusScript: document.getElementById('statusScript'),
+    statusGrid: document.getElementById('statusGrid'),
+    statusTime: document.getElementById('statusTime'),
+    statusErrors: document.getElementById('statusErrors'),
+    nextIndicator: document.getElementById('nextIndicator'),
+  };
+
+  const state = {
+    mode: 'sequence',          // 'sequence' | 'vocab'
+    script: 'hiragana',        // 'hiragana' | 'katakana'
+    gridN: 5,
+    hint: true,
+    started: false,
+    startTime: 0,
+    timerId: null,
+    errors: 0,
+    // Game-specific
+    orderList: [],             // The canonical sequence to follow (sequence mode) or the target word (vocab)
+    targetSeq: [],             // Array of characters in order to tap
+    nextIndex: 0,
+    cells: [],                 // [{char, used, el}]
+  };
+
+  // Init sample word dropdown
+  function initSamples() {
+    const frag = document.createDocumentFragment();
+    SAMPLE_WORDS.forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w;
+      opt.textContent = w;
+      frag.appendChild(opt);
+    });
+    el.sampleWord.appendChild(frag);
+  }
+  initSamples();
+
+  // Event listeners
+  el.modeGroup.addEventListener('change', () => {
+    state.mode = getSelectedRadio('mode');
+    updateModeUI();
+  });
+  el.scriptGroup.addEventListener('change', () => {
+    state.script = getSelectedRadio('script');
+    updateStatus();
+  });
+  el.gridSize.addEventListener('change', () => {
+    state.gridN = parseInt(el.gridSize.value, 10);
+    updateStatus();
+  });
+  el.toggleHint.addEventListener('change', () => {
+    state.hint = el.toggleHint.checked;
+    applyNextHighlight();
+  });
+  el.vocabKatakana.addEventListener('change', () => {
+    // No immediate effect; applied at game start
+  });
+  el.sampleWord.addEventListener('change', () => {
+    if (el.sampleWord.value) {
+      el.customWord.value = '';
+    }
+  });
+  el.customWord.addEventListener('input', () => {
+    if (el.customWord.value.trim()) {
+      el.sampleWord.value = '';
+    }
+  });
+
+  // Add touch event handlers for start/reset buttons
+  function addTouchEventHandlers(element, handler) {
+    let touchStarted = false;
+    
+    element.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      touchStarted = true;
+      element.classList.add('active');
+    }, { passive: false });
+
+    element.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      if (touchStarted) {
+        touchStarted = false;
+        element.classList.remove('active');
+        handler();
+      }
+    }, { passive: false });
+
+    // Keep click for desktop/testing
+    element.addEventListener('click', function(e) {
+      handler();
+    });
+  }
+
+  addTouchEventHandlers(el.btnStart, () => startGame());
+  addTouchEventHandlers(el.btnReset, () => resetGame());
+
+  function getSelectedRadio(name) {
+    const found = document.querySelector(`input[name="${name}"]:checked`);
+    return found ? found.value : null;
+  }
+
+  function updateModeUI() {
+    const isVocab = state.mode === 'vocab';
+    el.vocabOptions.style.display = isVocab ? '' : 'none';
+    // In sequence mode, script radio is meaningful; in vocab mode, it's still kept for distractors
+    updateStatus();
+  }
+
+  function updateStatus() {
+    el.statusMode.textContent = `Mode: ${state.mode === 'sequence' ? 'Sequence' : 'Vocabulary'}`;
+    el.statusScript.textContent = `Script: ${state.script === 'hiragana' ? 'Hiragana' : 'Katakana'}`;
+    el.statusGrid.textContent = `Grid: ${state.gridN}×${state.gridN}`;
+  }
+
+  function resetGame() {
+    stopTimer();
+    state.started = false;
+    state.errors = 0;
+    state.nextIndex = 0;
+    state.cells = [];
+    state.targetSeq = [];
+    el.statusTime.textContent = `Time: 0.00s`;
+    el.statusErrors.textContent = `Errors: 0`;
+    el.nextIndicator.textContent = `Next: —`;
+    el.grid.innerHTML = '';
+  }
+
+  function startGame() {
+    resetGame();
+
+    const n = state.gridN;
+    const totalCells = n * n;
+
+    if (state.mode === 'sequence') {
+      const base = state.script === 'hiragana' ? HIRAGANA.slice() : KATAKANA.slice();
+      // Limit to fit the grid
+      const count = Math.min(base.length, totalCells);
+      if (totalCells > base.length) {
+        // Informational: grid larger than available unique kana
+        console.warn('Grid larger than kana set; trimming to available count.');
+      }
+      const seq = base.slice(0, count);
+      state.orderList = seq.slice();     // canonical order to follow
+      state.targetSeq = seq.slice();     // same in this mode
+      // Create shuffled grid of the same chars
+      const pool = seq.slice();
+      shuffle(pool);
+      buildGrid(pool, n, n);
+      setNextIndicator();
+      if (state.hint) applyNextHighlight();
+    } else {
+      // Vocabulary mode
+      // Determine target word
+      let word = el.customWord.value.trim();
+      if (!word) word = el.sampleWord.value.trim();
+      if (!word) {
+        alert('Please select a sample word or type your own (kana).');
+        return;
+      }
+      // Optionally convert to Katakana
+      if (el.vocabKatakana.checked) {
+        word = hiraToKata(kataToHira(word)); // normalize to hira then to kata
+      }
+      // Validate contains kana
+      if (!/[ぁ-んァ-ヶ]/.test(word)) {
+        alert('Please enter kana (Hiragana or Katakana).');
+        return;
+      }
+      const targetArr = Array.from(word);
+      if (targetArr.length > totalCells) {
+        alert(`Grid too small for this word. Increase grid size (needs at least ${targetArr.length} cells).`);
+        return;
+      }
+      // Choose distractor script based on checkbox or presence
+      const isKatakanaTarget = /[ァ-ヶ]/.test(word) && !/[ぁ-ん]/.test(word);
+      const scriptForDistractors = isKatakanaTarget || el.vocabKatakana.checked ? 'katakana' : state.script;
+      const base = scriptForDistractors === 'katakana' ? KATAKANA.slice() : HIRAGANA.slice();
+
+      state.orderList = targetArr.slice();
+      state.targetSeq = targetArr.slice();
+
+      // Build pool: include the exact target characters (including duplicates), then fill with distractors
+      const pool = targetArr.slice();
+      // Fill with distractors that aren't needed too many times
+      while (pool.length < totalCells) {
+        const r = base[Math.floor(Math.random() * base.length)];
+        // Prevent adding too many duplicates of the next needed char; but allow general distractors
+        pool.push(r);
+      }
+      shuffle(pool);
+
+      // Ensure at least required counts of each target char exist (we already added them directly)
+      buildGrid(pool, n, n);
+      setNextIndicator();
+      if (state.hint) applyNextHighlight();
+    }
+
+    startTimer();
+  }
+
+  function buildGrid(charPool, rows, cols) {
+    el.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    el.grid.innerHTML = '';
+    state.cells = [];
+    const frag = document.createDocumentFragment();
+
+    charPool.slice(0, rows * cols).forEach((ch, idx) => {
+      const div = document.createElement('button');
+      div.type = 'button';
+      div.className = 'cell';
+      div.textContent = ch;
+      div.setAttribute('aria-label', ch);
+      div.addEventListener('click', () => onCellClick(idx));
+      state.cells.push({ char: ch, used: false, el: div });
+      frag.appendChild(div);
+    });
+    el.grid.appendChild(frag);
+  }
+
+  function onCellClick(index) {
+    const c = state.cells[index];
+    if (!c || c.used) return;
+    if (!state.started) state.started = true;
+
+    const expected = state.targetSeq[state.nextIndex];
+    if (c.char === expected) {
+      // Correct
+      c.used = true;
+      c.el.classList.add('correct', 'disabled');
+      state.nextIndex++;
+      setNextIndicator();
+      applyNextHighlight();
+      if (state.nextIndex >= state.targetSeq.length) {
+        // Done
+        stopTimer();
+        el.nextIndicator.textContent = `Completed! Time: ${formatTime(performance.now() - state.startTime)}`;
+        // Disable remaining cells
+        state.cells.forEach(cell => cell.el.classList.add('disabled'));
+      }
+    } else {
+      // Wrong
+      state.errors++;
+      el.statusErrors.textContent = `Errors: ${state.errors}`;
+      flashWrong(c.el);
+    }
+  }
+
+  function flashWrong(elm) {
+    elm.classList.add('wrong');
+    setTimeout(() => elm.classList.remove('wrong'), 180);
+  }
+
+  function setNextIndicator() {
+    if (state.nextIndex < state.targetSeq.length) {
+      el.nextIndicator.textContent = `Next: ${state.targetSeq[state.nextIndex]}`;
+    } else {
+      el.nextIndicator.textContent = `Next: —`;
+    }
+  }
+
+  function clearHighlights() {
+    state.cells.forEach(c => c.el.classList.remove('next'));
+  }
+
+  function applyNextHighlight() {
+    clearHighlights();
+    if (!state.hint) return;
+    if (state.mode === 'sequence') {
+      // Unique, highlight the one cell with the next char
+      const next = state.targetSeq[state.nextIndex];
+      const cell = state.cells.find(c => !c.used && c.char === next);
+      if (cell) cell.el.classList.add('next');
+    } else {
+      // In vocab mode, there can be multiple same kana; highlight all matches for the next required char
+      const next = state.targetSeq[state.nextIndex];
+      state.cells.forEach(c => {
+        if (!c.used && c.char === next) c.el.classList.add('next');
+      });
+    }
+  }
+
+  function startTimer() {
+    state.startTime = performance.now();
+    state.timerId = setInterval(() => {
+      const t = performance.now() - state.startTime;
+      el.statusTime.textContent = `Time: ${formatTime(t)}`;
+    }, 50);
+  }
+
+  function stopTimer() {
+    if (state.timerId) {
+      clearInterval(state.timerId);
+      state.timerId = null;
+    }
+  }
+
+  function formatTime(ms) {
+    return (ms / 1000).toFixed(2) + 's';
+  }
+
+  // Initialize UI
+  updateModeUI();
+  updateStatus();
+</script>
+</body>
+</html>
