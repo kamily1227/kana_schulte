@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>列王舒爾特方格 Kings Schulte Grid</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --accent-2: #3b82f6;
+    --danger: #ef4444;
+    --text: #e5e7eb;
+    --muted: #9ca3af;
+    --cell: #1f2937;
+    --cell-hover: #374151;
+    --cell-correct: #16a34a;
+    --cell-wrong: #dc2626;
+    --cell-next: #f59e0b;
+  }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, "PingFang HK", "Microsoft JhengHei", Arial, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+  }
+  .wrap {
+    max-width: 900px; margin: 0 auto; padding: 16px;
+    display: grid; grid-template-columns: 1fr; gap: 16px;
+  }
+  header { text-align: center; }
+  h1 { font-size: 22px; margin: 0 0 4px; font-weight: 700; color: #fff; }
+  .subtitle { color: var(--muted); font-size: 13px; }
+  .controls {
+    background: var(--panel); border-radius: 12px; padding: 14px; display: grid; gap: 12px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; }
+  button {
+    background: var(--accent-2); color: white; border: none; border-radius: 10px; padding: 12px 18px; font-weight: 600; cursor: pointer;
+    font-size: 15px; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  }
+  button.secondary { background: #334155; }
+  button.choice { background: #1f2937; border: 1px solid #334155; }
+  button.choice.active { background: var(--accent-2); border-color: var(--accent-2); }
+  .status {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center;
+    background: var(--panel); border-radius: 12px; padding: 10px 12px;
+  }
+  .badge {
+    font-size: 12px; background: #0b1220; border: 1px solid #26324a; border-radius: 999px; padding: 6px 10px; color: var(--text);
+  }
+  .next-indicator { font-size: 18px; font-weight: 600; width: 100%; text-align: center; }
+  .grid-outer { background: var(--panel); border-radius: 12px; padding: 10px; }
+  .grid { display: grid; gap: 8px; width: 100%; max-width: 700px; margin: 0 auto; touch-action: none; }
+  .cell {
+    background: var(--cell); border: 1px solid #26324a; color: #fff; border-radius: 10px;
+    display: grid; place-items: center; font-size: clamp(13px, 4.5vmin, 24px); aspect-ratio: 1;
+    user-select: none; transition: transform 0.08s ease, background 0.2s ease, border-color 0.2s ease;
+    padding: 4px; text-align: center; line-height: 1.15; overflow: hidden;
+  }
+  .cell.correct { background: var(--cell-correct); border-color: #0b6b2e; }
+  .cell.wrong { background: var(--cell-wrong); border-color: #7f1d1d; transform: scale(0.97); }
+  .cell.next { outline: 2px solid var(--cell-next); box-shadow: 0 0 0 2px var(--cell-next) inset; }
+  .cell.disabled { opacity: 0.65; pointer-events: none; }
+  .footer { color: var(--muted); font-size: 12px; text-align: center; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>📖 列王舒爾特方格</h1>
+      <div class="subtitle">按聖經記載的時序，依次點擊每位君王的名字</div>
+    </header>
+
+    <section class="controls">
+      <div class="row">
+        <button type="button" class="choice active" id="btnJudah">南國猶大列王</button>
+        <button type="button" class="choice" id="btnIsrael">北國以色列列王</button>
+      </div>
+      <div class="row">
+        <button id="btnStart">開始 Start</button>
+        <button id="btnReset" class="secondary">重設 Reset</button>
+      </div>
+    </section>
+
+    <section class="status">
+      <div class="badge" id="statusGrid">方格：—</div>
+      <div class="badge" id="statusTime">時間：0.00s</div>
+      <div class="badge" id="statusErrors">錯誤：0</div>
+      <div class="next-indicator" id="nextIndicator">下一個：—</div>
+    </section>
+
+    <section class="grid-outer">
+      <div id="grid" class="grid"></div>
+    </section>
+
+    <div class="footer">
+      玩法：請依聖經記載的時序，依序點擊方格中對應的列王名字。點對了會變綠色，點錯了會短暫閃紅。
+    </div>
+  </div>
+
+<script>
+  const KINGS = {
+    judah: ['羅波安','亞比雅','亞撒','約沙法','約蘭','亞哈謝','亞他利雅','約阿施','亞瑪謝','烏西雅','約坦','亞哈斯','希西家','瑪拿西','亞們','約西亞','約哈斯','約雅敬','約雅斤','西底家'],
+    israel: ['耶羅波安','拿答','巴沙','以拉','心利','暗利','亞哈','亞哈謝','約蘭','耶戶','約哈斯','約阿施','耶羅波安二世','撒迦利雅','沙龍','米拿現','比加轄','比加','何細亞'],
+  };
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function bestRectangle(k) {
+    if (k <= 0) return { rows: 1, cols: 1 };
+    if (k <= 3) return { rows: 1, cols: k };
+    let best = null;
+    const maxRows = Math.ceil(Math.sqrt(k)) + 3;
+    for (let rows = 1; rows <= maxRows; rows++) {
+      const cols = Math.ceil(k / rows);
+      const total = rows * cols;
+      const waste = total - k;
+      const aspect = Math.abs(rows - cols);
+      const score = waste + aspect * 1.5;
+      if (best === null || score < best.score) {
+        best = { rows, cols, waste, aspect, score };
+      }
+    }
+    return { rows: best.rows, cols: best.cols };
+  }
+
+  const el = {
+    grid: document.getElementById('grid'),
+    btnStart: document.getElementById('btnStart'),
+    btnReset: document.getElementById('btnReset'),
+    btnJudah: document.getElementById('btnJudah'),
+    btnIsrael: document.getElementById('btnIsrael'),
+    statusGrid: document.getElementById('statusGrid'),
+    statusTime: document.getElementById('statusTime'),
+    statusErrors: document.getElementById('statusErrors'),
+    nextIndicator: document.getElementById('nextIndicator'),
+  };
+
+  const state = {
+    kingdom: 'judah',
+    started: false,
+    startTime: 0,
+    timerId: null,
+    errors: 0,
+    targetSeq: [],
+    nextIndex: 0,
+    cells: [],
+  };
+
+  function setKingdom(k) {
+    state.kingdom = k;
+    el.btnJudah.classList.toggle('active', k === 'judah');
+    el.btnIsrael.classList.toggle('active', k === 'israel');
+    resetGame();
+  }
+  el.btnJudah.addEventListener('click', () => setKingdom('judah'));
+  el.btnIsrael.addEventListener('click', () => setKingdom('israel'));
+
+  function addTouchEventHandlers(element, handler) {
+    let touchStarted = false;
+    element.addEventListener('touchstart', function(e) {
+      e.preventDefault(); touchStarted = true;
+    }, { passive: false });
+    element.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      if (touchStarted) { touchStarted = false; handler(); }
+    }, { passive: false });
+    element.addEventListener('click', function(e) { handler(); });
+  }
+  addTouchEventHandlers(el.btnStart, () => startGame());
+  addTouchEventHandlers(el.btnReset, () => resetGame());
+
+  function resetGame() {
+    stopTimer();
+    state.started = false;
+    state.errors = 0;
+    state.nextIndex = 0;
+    state.cells = [];
+    state.targetSeq = [];
+    el.statusTime.textContent = `時間：0.00s`;
+    el.statusErrors.textContent = `錯誤：0`;
+    el.statusGrid.textContent = `方格：—`;
+    el.nextIndicator.textContent = `下一個：—`;
+    el.grid.innerHTML = '';
+  }
+
+  function startGame() {
+    resetGame();
+    const items = KINGS[state.kingdom].slice();
+    const { rows, cols } = bestRectangle(items.length);
+    const totalCells = rows * cols;
+
+    state.targetSeq = items.slice();
+    let pool = items.slice();
+    while (pool.length < totalCells) pool.push('·');
+    shuffle(pool);
+
+    buildGrid(pool, rows, cols);
+    el.statusGrid.textContent = `方格：${rows}×${cols}`;
+    setNextIndicator();
+    applyNextHighlight();
+    startTimer();
+  }
+
+  function buildGrid(charPool, rows, cols) {
+    el.grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    el.grid.innerHTML = '';
+    state.cells = [];
+    const frag = document.createDocumentFragment();
+    charPool.slice(0, rows * cols).forEach((ch, idx) => {
+      const div = document.createElement('button');
+      div.type = 'button';
+      div.className = 'cell';
+      div.textContent = ch;
+      div.setAttribute('aria-label', ch);
+      if (ch === '·') div.classList.add('disabled');
+      div.addEventListener('click', () => onCellClick(idx));
+      state.cells.push({ char: ch, used: false, el: div });
+      frag.appendChild(div);
+    });
+    el.grid.appendChild(frag);
+  }
+
+  function onCellClick(index) {
+    const c = state.cells[index];
+    if (!c || c.used || c.char === '·') return;
+    if (!state.started) state.started = true;
+
+    const expected = state.targetSeq[state.nextIndex];
+    if (c.char === expected) {
+      c.used = true;
+      c.el.classList.add('correct', 'disabled');
+      state.nextIndex++;
+      setNextIndicator();
+      applyNextHighlight();
+      if (state.nextIndex >= state.targetSeq.length) {
+        stopTimer();
+        el.nextIndicator.textContent = `完成！時間：${formatTime(performance.now() - state.startTime)}`;
+        state.cells.forEach(cell => cell.el.classList.add('disabled'));
+      }
+    } else {
+      state.errors++;
+      el.statusErrors.textContent = `錯誤：${state.errors}`;
+      flashWrong(c.el);
+    }
+  }
+
+  function flashWrong(elm) {
+    elm.classList.add('wrong');
+    setTimeout(() => elm.classList.remove('wrong'), 180);
+  }
+
+  function setNextIndicator() {
+    el.nextIndicator.textContent = state.nextIndex < state.targetSeq.length
+      ? `下一個：${state.targetSeq[state.nextIndex]}`
+      : `下一個：—`;
+  }
+
+  function applyNextHighlight() {
+    state.cells.forEach(c => c.el.classList.remove('next'));
+    const next = state.targetSeq[state.nextIndex];
+    const cell = state.cells.find(c => !c.used && c.char === next);
+    if (cell) cell.el.classList.add('next');
+  }
+
+  function startTimer() {
+    state.startTime = performance.now();
+    state.timerId = setInterval(() => {
+      el.statusTime.textContent = `時間：${formatTime(performance.now() - state.startTime)}`;
+    }, 50);
+  }
+  function stopTimer() {
+    if (state.timerId) { clearInterval(state.timerId); state.timerId = null; }
+  }
+  function formatTime(ms) { return (ms / 1000).toFixed(2) + 's'; }
+</script>
+</body>
+</html>
