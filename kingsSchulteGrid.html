@@ -147,10 +147,11 @@
     statusTime: document.getElementById('statusTime'),
     statusErrors: document.getElementById('statusErrors'),
     nextIndicator: document.getElementById('nextIndicator'),
+    toggleHint: document.getElementById('toggleHint'),
   };
-
   const state = {
     kingdom: 'judah',
+    hint: true,
     started: false,
     startTime: 0,
     timerId: null,
@@ -182,6 +183,11 @@
   }
   addTouchEventHandlers(el.btnStart, () => startGame());
   addTouchEventHandlers(el.btnReset, () => resetGame());
+  el.toggleHint.addEventListener('change', () => {
+    state.hint = el.toggleHint.checked;
+    applyNextHighlight();
+  });
+  
 
   function resetGame() {
     stopTimer();
@@ -269,13 +275,13 @@
       : `下一個：—`;
   }
 
-  function applyNextHighlight() {
+    function applyNextHighlight() {
     state.cells.forEach(c => c.el.classList.remove('next'));
+    if (!state.hint) return;
     const next = state.targetSeq[state.nextIndex];
     const cell = state.cells.find(c => !c.used && c.char === next);
     if (cell) cell.el.classList.add('next');
   }
-
   function startTimer() {
     state.startTime = performance.now();
     state.timerId = setInterval(() => {
