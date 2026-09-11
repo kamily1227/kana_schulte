@@ -275,7 +275,7 @@
       : `下一個：—`;
   }
 
-    function applyNextHighlight() {
+  function applyNextHighlight() {
     state.cells.forEach(c => c.el.classList.remove('next'));
     if (!state.hint) return;
     const next = state.targetSeq[state.nextIndex];
